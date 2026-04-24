@@ -50,6 +50,12 @@ public class Usuario {
     @Column(name = "lock_until")
     private LocalDateTime lockUntil;
 
-    @Column(name = "last_login_at")
-    private LocalDateTime lastLoginAt;
+     @Column(name = "last_login_at")
+     private LocalDateTime lastLoginAt;
+
+     @Column(name = "password_reset_token")
+     private String passwordResetToken;
+
+     @Column(name = "password_reset_token_expiry")
+     private LocalDateTime passwordResetTokenExpiry;
 }

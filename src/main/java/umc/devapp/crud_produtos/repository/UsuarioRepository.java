@@ -7,4 +7,5 @@ import umc.devapp.crud_produtos.entity.Usuario;
 public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     Optional<Usuario> findByUsername(String username);
     Optional<Usuario> findByEmail(String email);
+    Optional<Usuario> findByPasswordResetToken(String token);
 }
