@@ -1,5 +1,6 @@
 package umc.devapp.crud_produtos.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -14,6 +15,9 @@ import java.util.List;
 @Configuration
 public class SecurityConfig {
 
+    @Value("${server.ssl.enabled:false}")
+    private boolean sslEnabled;
+
     @Bean
     public HttpSessionSecurityContextRepository httpSessionSecurityContextRepository() {
         return new HttpSessionSecurityContextRepository();
@@ -22,7 +26,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:5500"));
+        configuration.setAllowedOriginPatterns(List.of("*"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
@@ -43,6 +47,7 @@ public class SecurityConfig {
                 .securityContext(context -> context.securityContextRepository(httpSessionSecurityContextRepository()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**").permitAll()
+                        .requestMatchers("/*.html", "/scripts/**", "/styles/**", "/images/**", "/").permitAll()
                         .requestMatchers("/produto/**").authenticated()
                         .anyRequest().authenticated()
                 )
@@ -51,6 +56,17 @@ public class SecurityConfig {
                         .invalidateHttpSession(true)
                         .deleteCookies("JSESSIONID")
                 );
+
+        if (sslEnabled) {
+            http
+                .requiresChannel(channel -> channel.anyRequest().requiresSecure())
+                .headers(headers -> headers
+                        .httpStrictTransportSecurity(hsts -> hsts
+                                .includeSubDomains(true)
+                                .maxAgeInSeconds(31536000)
+                        )
+                );
+        }
 
         return http.build();
     }

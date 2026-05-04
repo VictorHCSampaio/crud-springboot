@@ -1,11 +1,13 @@
 package umc.devapp.crud_produtos.entity;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import umc.devapp.crud_produtos.config.TotpSecretConverter;
 import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -38,6 +40,7 @@ public class Usuario {
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
+    @Convert(converter = TotpSecretConverter.class)
     @Column(name = "totp_secret", nullable = false)
     private String totpSecret;
 
@@ -50,6 +53,12 @@ public class Usuario {
     @Column(name = "lock_until")
     private LocalDateTime lockUntil;
 
-    @Column(name = "last_login_at")
-    private LocalDateTime lastLoginAt;
+     @Column(name = "last_login_at")
+     private LocalDateTime lastLoginAt;
+
+     @Column(name = "password_reset_token")
+     private String passwordResetToken;
+
+     @Column(name = "password_reset_token_expiry")
+     private LocalDateTime passwordResetTokenExpiry;
 }

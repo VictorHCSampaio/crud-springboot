@@ -3,9 +3,11 @@ package umc.devapp.crud_produtos.service;
 import com.warrenstrange.googleauth.GoogleAuthenticator;
 import com.warrenstrange.googleauth.GoogleAuthenticatorConfig;
 import com.warrenstrange.googleauth.GoogleAuthenticatorKey;
-import com.warrenstrange.googleauth.GoogleAuthenticatorQRGenerator;
 import org.springframework.stereotype.Service;
 import umc.devapp.crud_produtos.config.SecurityAuthProperties;
+
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 @Service
 public class TotpService {
@@ -27,11 +29,13 @@ public class TotpService {
     }
 
     public String buildQrUri(String username, String secret) {
-        return GoogleAuthenticatorQRGenerator.getOtpAuthURL(
-                securityAuthProperties.totp().issuer(),
-                username,
-                new GoogleAuthenticatorKey.Builder(secret).build()
-        );
+        String issuer = securityAuthProperties.totp().issuer();
+        String label = issuer + ":" + username;
+        String encodedLabel = URLEncoder.encode(label, StandardCharsets.UTF_8);
+        String encodedIssuer = URLEncoder.encode(issuer, StandardCharsets.UTF_8);
+        String qrUri = "otpauth://totp/" + encodedLabel + "?secret=" + secret + "&issuer=" + encodedIssuer;
+        System.out.println(qrUri);
+        return qrUri;
     }
 
     public boolean verifyCode(String secret, int code) {
