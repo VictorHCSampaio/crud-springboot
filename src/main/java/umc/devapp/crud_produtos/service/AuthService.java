@@ -20,11 +20,17 @@ import umc.devapp.crud_produtos.dto.auth.RegisterRequest;
 import umc.devapp.crud_produtos.dto.auth.TotpSetupResponse;
 import umc.devapp.crud_produtos.entity.Usuario;
 import umc.devapp.crud_produtos.repository.UsuarioRepository;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class AuthService {
 
     public static final String PRIMARY_AUTH_USER_ID = "PRIMARY_AUTH_USER_ID";
+
+    
+    @Value("${spring.profiles.active:dev}")
+    private String activeProfile;
+
 
     private final UsuarioRepository usuarioRepository;
     private final PasswordService passwordService;
@@ -102,22 +108,28 @@ public class AuthService {
         Usuario usuario = usuarioRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(UNAUTHORIZED, "Usuario invalido"));
 
-        if (!totpService.verifyCode(usuario.getTotpSecret(), code)) {
-            bruteForceProtectionService.registerFailedAttempt(usuario);
-            throw new ResponseStatusException(UNAUTHORIZED, "Codigo TOTP invalido");
+        // 🔐 Só exige 2FA fora do ambiente local
+        if (!"local".equals(activeProfile)) {
+            if (!totpService.verifyCode(usuario.getTotpSecret(), code)) {
+                bruteForceProtectionService.registerFailedAttempt(usuario);
+                throw new ResponseStatusException(UNAUTHORIZED, "Codigo TOTP invalido");
+            }
         }
 
         bruteForceProtectionService.registerSuccessfulAttempt(usuario);
-        UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
-                usuario.getUsername(),
-                null,
-                List.of(new SimpleGrantedAuthority("ROLE_USER"))
-        );
+
+        UsernamePasswordAuthenticationToken authenticationToken =
+                new UsernamePasswordAuthenticationToken(
+                        usuario.getUsername(),
+                        null,
+                        List.of(new SimpleGrantedAuthority("ROLE_USER"))
+                );
 
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authenticationToken);
         SecurityContextHolder.setContext(context);
         securityContextRepository.saveContext(context, request, response);
+
         session.removeAttribute(PRIMARY_AUTH_USER_ID);
     }
 
