@@ -3,13 +3,12 @@ package umc.devapp.crud_produtos.service;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
-import java.util.Objects;
 import java.util.List;
+import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
@@ -35,9 +34,6 @@ public class AuthService {
 
     public static final String PRIMARY_AUTH_USER_ID = "PRIMARY_AUTH_USER_ID";
 
-    @Value("${spring.profiles.active:dev}")
-    private String activeProfile;
-
     private final UsuarioRepository usuarioRepository;
     private final PasswordService passwordService;
     private final TotpService totpService;
@@ -58,6 +54,7 @@ public class AuthService {
         this.securityContextRepository = securityContextRepository;
     }
 
+
     @Transactional
     public TotpSetupResponse register(RegisterRequest request) {
         usuarioRepository.findByUsername(request.username()).ifPresent(user -> {
@@ -69,6 +66,7 @@ public class AuthService {
         });
 
         String secret = totpService.generateSecret();
+
         Usuario usuario = Usuario.builder()
                 .nome(request.nome())
                 .username(request.username())
@@ -83,39 +81,38 @@ public class AuthService {
 
         logger.info("Usuário registrado com sucesso. usuarioId={}", savedUsuario.getId());
 
-        return new TotpSetupResponse(secret, totpService.buildQrUri(savedUsuario.getUsername(), secret));
+        return new TotpSetupResponse(
+                secret,
+                totpService.buildQrUri(savedUsuario.getUsername(), secret)
+        );
     }
 
     @Transactional
     public void loginPrimaryStep(String username, String password, HttpSession session) {
         logger.info("Tentativa de login para username={}", username);
 
-        try {
-            Usuario usuario = usuarioRepository.findByUsername(username)
-                    .orElseThrow(() -> {
-                        logger.warn("Falha de login: usuário não encontrado. username={}", username);
-                        return new ResponseStatusException(UNAUTHORIZED, "Credenciais invalidas");
-                    });
+        Usuario usuario = usuarioRepository.findByUsername(username)
+                .orElseThrow(() -> {
+                    logger.warn("Falha de login: usuário não encontrado. username={}", username);
+                    return new ResponseStatusException(UNAUTHORIZED, "Credenciais invalidas");
+                });
 
-            if (bruteForceProtectionService.isBlocked(usuario)) {
-                logger.warn("Tentativa de login em conta bloqueada. usuarioId={}", usuario.getId());
-                throw new ResponseStatusException(LOCKED, "Conta temporariamente bloqueada");
-            }
-
-            if (!passwordService.matches(password, usuario.getPasswordHash())) {
-                bruteForceProtectionService.registerFailedAttempt(usuario);
-                logger.warn("Falha de login por senha inválida. usuarioId={}", usuario.getId());
-                throw new ResponseStatusException(UNAUTHORIZED, "Credenciais invalidas");
-            }
-
-            session.setAttribute(PRIMARY_AUTH_USER_ID, usuario.getId());
-            logger.info("Login primário realizado com sucesso. usuarioId={}", usuario.getId());
-
-        } catch (Exception e) {
-            logger.error("Erro inesperado no login. username={}", username, e);
-            throw e;
+        if (bruteForceProtectionService.isBlocked(usuario)) {
+            logger.warn("Tentativa de login em conta bloqueada. usuarioId={}", usuario.getId());
+            throw new ResponseStatusException(LOCKED, "Conta temporariamente bloqueada");
         }
+
+        if (!passwordService.matches(password, usuario.getPasswordHash())) {
+            bruteForceProtectionService.registerFailedAttempt(usuario);
+            logger.warn("Falha de login por senha inválida. usuarioId={}", usuario.getId());
+            throw new ResponseStatusException(UNAUTHORIZED, "Credenciais invalidas");
+        }
+
+        session.setAttribute(PRIMARY_AUTH_USER_ID, usuario.getId());
+
+        logger.info("Login primário realizado com sucesso. usuarioId={}", usuario.getId());
     }
+
 
     @Transactional
     public void verifyTotpAndAuthenticate(
@@ -124,47 +121,40 @@ public class AuthService {
             HttpServletRequest request,
             HttpServletResponse response
     ) {
-        try {
-            Long userId = (Long) session.getAttribute(PRIMARY_AUTH_USER_ID);
-            if (userId == null) {
-                logger.warn("Tentativa de validação de 2FA sem login primário");
-                throw new ResponseStatusException(UNAUTHORIZED, "Login primario nao realizado");
-            }
-
-            Usuario usuario = usuarioRepository.findById(userId)
-                    .orElseThrow(() -> new ResponseStatusException(UNAUTHORIZED, "Usuario invalido"));
-
-            logger.info("Tentativa de validação de 2FA. usuarioId={}", usuario.getId());
-
-            if (!"local".equals(activeProfile)) {
-                if (!totpService.verifyCode(usuario.getTotpSecret(), code)) {
-                    bruteForceProtectionService.registerFailedAttempt(usuario);
-                    logger.warn("Falha na validação de 2FA. usuarioId={}", usuario.getId());
-                    throw new ResponseStatusException(UNAUTHORIZED, "Codigo TOTP invalido");
-                }
-            }
-
-            bruteForceProtectionService.registerSuccessfulAttempt(usuario);
-            logger.info("2FA validado com sucesso. usuarioId={}", usuario.getId());
-
-            UsernamePasswordAuthenticationToken authenticationToken =
-                    new UsernamePasswordAuthenticationToken(
-                            usuario.getUsername(),
-                            null,
-                            List.of(new SimpleGrantedAuthority("ROLE_USER"))
-                    );
-
-            SecurityContext context = SecurityContextHolder.createEmptyContext();
-            context.setAuthentication(authenticationToken);
-            SecurityContextHolder.setContext(context);
-            securityContextRepository.saveContext(context, request, response);
-
-            session.removeAttribute(PRIMARY_AUTH_USER_ID);
-
-        } catch (Exception e) {
-            logger.error("Erro inesperado na validação de 2FA", e);
-            throw e;
+        Long userId = (Long) session.getAttribute(PRIMARY_AUTH_USER_ID);
+        if (userId == null) {
+            logger.warn("Tentativa de validação de 2FA sem login primário");
+            throw new ResponseStatusException(UNAUTHORIZED, "Login primario nao realizado");
         }
+
+        Usuario usuario = usuarioRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(UNAUTHORIZED, "Usuario invalido"));
+
+        logger.info("Tentativa de validação de 2FA. usuarioId={}", usuario.getId());
+
+        if (!totpService.verifyCode(usuario.getTotpSecret(), code)) {
+            bruteForceProtectionService.registerFailedAttempt(usuario);
+            logger.warn("Falha na validação de 2FA. usuarioId={}", usuario.getId());
+            throw new ResponseStatusException(UNAUTHORIZED, "Codigo TOTP invalido");
+        }
+
+        bruteForceProtectionService.registerSuccessfulAttempt(usuario);
+
+        logger.info("2FA validado com sucesso. usuarioId={}", usuario.getId());
+
+        UsernamePasswordAuthenticationToken authenticationToken =
+                new UsernamePasswordAuthenticationToken(
+                        usuario.getUsername(),
+                        null,
+                        List.of(new SimpleGrantedAuthority("ROLE_USER"))
+                );
+
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(authenticationToken);
+        SecurityContextHolder.setContext(context);
+        securityContextRepository.saveContext(context, request, response);
+
+        session.removeAttribute(PRIMARY_AUTH_USER_ID);
     }
 
     public void logout(HttpSession session) {
@@ -173,6 +163,7 @@ public class AuthService {
         SecurityContextHolder.clearContext();
         logger.info("Logout realizado com sucesso. sessionId={}", sessionId);
     }
+
 
     @Transactional(readOnly = true)
     public TotpSetupResponse getTotpSetup(HttpSession session) {
