@@ -3,9 +3,11 @@ package umc.devapp.crud_produtos.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -47,7 +49,18 @@ public class SecurityConfig {
                 .securityContext(context -> context.securityContextRepository(httpSessionSecurityContextRepository()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**").permitAll()
-                        .requestMatchers("/*.html", "/scripts/**", "/styles/**", "/images/**", "/").permitAll()
+                        .requestMatchers("/erro").permitAll()
+                        .requestMatchers(HttpMethod.GET,
+                                "/",
+                                "/login.html",
+                                "/favicon.ico",
+                                "/scripts/**",
+                                "/styles/**",
+                                "/images/**"
+                        ).permitAll()
+                        // PathPattern "/*.html" não cobre todos os casos; AntPath garante HTML estático público
+                        .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/**/*.html")).permitAll()
+                        .requestMatchers(AntPathRequestMatcher.antMatcher(HttpMethod.GET, "/*.html")).permitAll()
                         .requestMatchers("/produto/**").authenticated()
                         .anyRequest().authenticated()
                 )

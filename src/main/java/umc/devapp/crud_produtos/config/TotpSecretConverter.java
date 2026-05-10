@@ -23,6 +23,8 @@ public class TotpSecretConverter implements AttributeConverter<String, String> {
     private static final String ALGORITHM = "AES/GCM/NoPadding";
     private static final int GCM_IV_LENGTH = 12;
     private static final int GCM_TAG_LENGTH = 128;
+    /** IV + tag GCM (16 bytes); ciphertext vazio ainda produz tag de 16 bytes. */
+    private static final int MIN_ENCRYPTED_BINARY_LENGTH = GCM_IV_LENGTH + (GCM_TAG_LENGTH / Byte.SIZE);
 
     private javax.crypto.SecretKey resolveKey() {
         String keyBase64 = System.getProperty("ENCRYPTION_KEY");
@@ -57,9 +59,19 @@ public class TotpSecretConverter implements AttributeConverter<String, String> {
     @Override
     public String convertToEntityAttribute(String dbData) {
         if (dbData == null) return null;
-        try {
-            byte[] encryptedWithIv = Base64.getDecoder().decode(dbData);
 
+        byte[] encryptedWithIv;
+        try {
+            encryptedWithIv = Base64.getDecoder().decode(dbData);
+        } catch (IllegalArgumentException e) {
+            return dbData;
+        }
+
+        if (encryptedWithIv.length < MIN_ENCRYPTED_BINARY_LENGTH) {
+            return dbData;
+        }
+
+        try {
             byte[] iv = new byte[GCM_IV_LENGTH];
             System.arraycopy(encryptedWithIv, 0, iv, 0, GCM_IV_LENGTH);
 

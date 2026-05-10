@@ -27,7 +27,7 @@ public class Produto {
     private String categoria;
     @Column (name = "qtd_estoque")
     private Integer qtd_estoque;
-    @Column (name = "forncedeor")
+    @Column (name = "fornecedor")
     private String fornecedor;
     @Column (name = "tipo")
     private String tipo;

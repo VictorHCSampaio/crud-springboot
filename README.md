@@ -4,7 +4,7 @@
 
 API REST desenvolvida com Spring Boot para gerenciamento de um estoque de produtos. A aplicação oferece um CRUD completo de produtos com autenticação baseada em sessão, autenticação de dois fatores (2FA via TOTP), recuperação de senha por e-mail e proteção contra ataques de força bruta.
 
-O backend também **serve o frontend** diretamente, eliminando problemas de cross-origin. Toda a aplicação (API + interface web) é acessada pelo mesmo endereço: `https://localhost:8443`.
+O backend também **serve o frontend** diretamente, eliminando problemas de cross-origin. Nos perfis **`local`** e **`dev`** a API e o frontend usam **HTTPS em `https://localhost:8443`**; a porta **8080** apenas redireciona para HTTPS.
 
 ---
 
@@ -72,15 +72,19 @@ mvn clean install -DskipTests
 mvn spring-boot:run
 ```
 
-**5. Aceite o certificado autoassinado**
+**5. Certificado HTTPS (`local` e `dev`)**
 
-Na primeira vez, acesse `https://localhost:8443` no navegador. Aparecerá um aviso de segurança — clique em **"Avançar"** (ou **"Proceed to localhost"**) para aceitar o certificado de desenvolvimento.
+Gere o keystore **uma vez** na raiz do projeto:
+
+```bash
+bash scripts/generate-dev-keystore.sh
+```
+
+Na primeira vez, acesse `https://localhost:8443` e aceite o certificado autoassinado (**Avançar** / **Proceed to localhost**). Suba o backend **a partir da raiz** do repositório para o caminho `certs/dev-keystore.p12` ser encontrado.
 
 **6. Acesse a aplicação**
 
-```
-https://localhost:8443/login.html
-```
+`https://localhost:8443/login.html` (HTTP na porta 8080 redireciona para HTTPS).
 
 > O frontend é servido automaticamente pelo Spring Boot a partir da pasta `../crud-springboot-front/`. Não é necessário nenhum servidor adicional.
 
@@ -88,28 +92,35 @@ https://localhost:8443/login.html
 
 ## Perfis de Execução
 
-O perfil ativo é controlado pela variável `APP_PROFILE` no `.env`.
+O perfil ativo é controlado pela variável `APP_PROFILE` no `.env` (em `application.properties` o **padrão** é `local` se `APP_PROFILE` não estiver definida).
 
-| Perfil | Banco de Dados | Porta | SSL |
-|--------|---------------|-------|-----|
-| `dev` (padrão) | PostgreSQL / Supabase | 8443 | HTTPS ativado |
-| `local` | MySQL local | 8080 | HTTP (sem SSL) |
+| Perfil | Banco (padrão no arquivo) | App | Observação |
+|--------|---------------------------|-----|------------|
+| `local` (padrão) | MySQL com `sslMode` **DISABLED** por defeito | **HTTPS 8443**, redirect na **8080** | MySQL clássico em `localhost` sem TLS |
+| `dev` | MySQL com `sslMode` **PREFERRED** por defeito | **HTTPS 8443**, redirect na **8080** | Mesmo HTTPS; JDBC mais favorável a SSL no banco |
 
-### Perfil `local` (MySQL)
+Para PostgreSQL/Supabase ou outra URL JDBC, defina `SPRING_DATASOURCE_URL` no ambiente (sobrescreve o padrão do perfil).
 
-Edite `src/main/resources/application-local.properties`:
-```properties
-spring.datasource.url=jdbc:mysql://localhost:3306/crud
-spring.datasource.username=SEU_USUARIO
-spring.datasource.password=SUA_SENHA
-```
+### HTTPS em `local` e `dev`
+
+Os dois perfis usam o mesmo keystore PKCS12:
+
+1. `bash scripts/generate-dev-keystore.sh` → cria `certs/dev-keystore.p12` (ignorado pelo Git).
+2. Senha padrão: `changeit` (`SSL_KEYSTORE_PASSWORD`). Opcional: `SSL_KEYSTORE_FILE` para outro `.p12`.
+3. `APP_PROFILE=local` (padrão) ou `APP_PROFILE=dev` no `.env`.
+
+### Perfil `local` — MySQL
+
+Credenciais: `PG_USER` / `PG_PASSWORD` no `.env`. `MYSQL_SSL_MODE` por defeito **DISABLED**; use `REQUIRED`/`PREFERRED` se o MySQL local exigir SSL.
 
 Crie o banco antes de subir:
 ```sql
 CREATE DATABASE crud;
 ```
 
-No perfil `local`, a aplicação sobe em `http://localhost:8080/login.html` (sem HTTPS).
+### Cookie `Secure`
+
+Com `server.ssl.enabled=true` nos perfis acima, o `JSESSIONID` é **`Secure`** (compatível com HTTPS).
 
 ---
 
@@ -117,7 +128,10 @@ No perfil `local`, a aplicação sobe em `http://localhost:8080/login.html` (sem
 
 | Variável | Descrição | Obrigatório |
 |---|---|---|
-| `APP_PROFILE` | Perfil ativo (`dev` ou `local`). Padrão: `dev` | Não |
+| `APP_PROFILE` | Perfil ativo (`dev` ou `local`). Padrão no código: `local` | Não |
+| `MYSQL_SSL_MODE` | Modo SSL do conector MySQL (`DISABLED`, `PREFERRED`, `REQUIRED`, …). Ver documentação do MySQL Connector/J | Não |
+| `SPRING_DATASOURCE_URL` | URL JDBC completa (sobrescreve a URL padrão do perfil) | Não |
+| `SSL_KEYSTORE_FILE` | Caminho absoluto ou relativo ao diretório de trabalho para o `.p12` (perfil `dev`) | Não |
 | `PG_USER` | Usuário do banco PostgreSQL | Sim (perfil dev) |
 | `PG_PASSWORD` | Senha do banco PostgreSQL | Sim (perfil dev) |
 | `MAIL_USERNAME` | E-mail remetente (ex: `seu@gmail.com`) | Sim |
@@ -166,8 +180,10 @@ openssl rand -base64 32
 ### Justificativa Técnica (Req. 3.8)
 
 **TLS/HTTPS**
-- Todo o tráfego é protegido por TLS na porta 8443. Requisições HTTP na porta 8080 são redirecionadas automaticamente para HTTPS (perfis dev/prod), impedindo comunicação em texto claro.
-- O cabeçalho `Strict-Transport-Security` (HSTS, `max-age=31536000; includeSubDomains`) instrui o navegador a usar exclusivamente HTTPS nas requisições futuras.
+- Com o perfil **`dev`** (`server.ssl.enabled=true`), o tráfego da API e do frontend servido pelo Spring usa **HTTPS na porta 8443**. Requisições HTTP na porta **8080** são redirecionadas para HTTPS (`HttpsRedirectConfig` + Tomcat `CONFIDENTIAL`).
+- O cabeçalho **HSTS** (`Strict-Transport-Security`, `max-age=31536000; includeSubDomains`) é aplicado quando SSL está ativo (`SecurityConfig`).
+- O cookie `JSESSIONID` usa **`Secure`** quando SSL está ativo (`server.servlet.session.cookie.secure=${server.ssl.enabled}`), o que vale nos perfis **`local`** e **`dev`** (HTTPS).
+- **TLS JDBC**: parâmetro `sslMode` na URL do MySQL, configurável via `MYSQL_SSL_MODE` / URL customizada (`SPRING_DATASOURCE_URL`), para cifrar tráfego app→banco quando o servidor MySQL exige ou oferece SSL.
 
 **BCrypt (senhas)**
 - Algoritmo de hash adaptativo com salt embutido. O fator de custo `strength=12` torna ataques de força bruta inviáveis mesmo com hardware moderno.
