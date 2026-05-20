@@ -1,13 +1,13 @@
-# Testes de seguranca
+# Testes de segurança
 
-Documentacao dos testes automatizados e roteiro de testes manuais do projeto CRUD Produtos.
+Documentação dos testes automatizados e roteiro de testes manuais do projeto CRUD Produtos.
 
-## 1. Visao geral
+## 1. Visão geral
 
 | Tipo | Framework | Banco em testes |
 |------|-----------|-----------------|
-| Unitario | JUnit 5 | N/A (mocks / sem BD) |
-| Integracao | Spring Boot Test | H2 em memoria |
+| Unitário | JUnit 5 | N/A (mocks / sem BD) |
+| Integração | Spring Boot Test | H2 em memória |
 
 Executar todos os testes:
 
@@ -15,7 +15,7 @@ Executar todos os testes:
 mvn test
 ```
 
-Configuracao de teste: `src/test/resources/application.properties` (H2, `ddl-auto=create-drop`).
+Configuração de teste: `src/test/resources/application.properties` (H2, `ddl-auto=create-drop`).
 
 ---
 
@@ -25,14 +25,14 @@ Configuracao de teste: `src/test/resources/application.properties` (H2, `ddl-aut
 
 **Arquivo:** `src/test/java/umc/devapp/crud_produtos/service/PasswordServiceTest.java`
 
-**Foco:** BCrypt — hash, validacao e unicidade do salt.
+**Foco:** BCrypt — hash, validação e unicidade do salt.
 
-| Teste | Descricao | Resultado esperado |
+| Teste | Descrição | Resultado esperado |
 |-------|-----------|-------------------|
 | `shouldHashAndValidatePasswordWithBcrypt` | Hash de senha e `matches()` | PASS |
-| `shouldGenerateDifferentHashesForSamePasswordBecauseOfSalt` | Dois hashes da mesma senha sao diferentes; ambos validam | PASS |
+| `shouldGenerateDifferentHashesForSamePasswordBecauseOfSalt` | Dois hashes da mesma senha são diferentes; ambos validam | PASS |
 
-**Evidencia de seguranca:** confirma que senhas nao sao armazenadas em texto claro e que cada hash usa salt proprio (comportamento padrao BCrypt).
+**Evidência de segurança:** confirma que senhas não são armazenadas em texto claro e que cada hash usa salt próprio (comportamento padrão BCrypt).
 
 ---
 
@@ -42,16 +42,16 @@ Configuracao de teste: `src/test/resources/application.properties` (H2, `ddl-aut
 
 **Foco:** Criptografia AES-256-GCM do campo `totp_secret`.
 
-Setup: `@BeforeAll` define `ENCRYPTION_KEY` (32 bytes fixos em Base64 para reproducibilidade).
+Setup: `@BeforeAll` define `ENCRYPTION_KEY` (32 bytes fixos em Base64 para reprodutibilidade).
 
-| Teste | Descricao | Resultado esperado |
+| Teste | Descrição | Resultado esperado |
 |-------|-----------|-------------------|
 | `roundTripEncryptThenDecrypt` | Cifra e decifra segredo TOTP | PASS — plaintext igual |
-| `legacyPlainSecretNotValidBase64ReturnedAsIs` | Segredo legado em texto plano | PASS — sem excecao |
-| `legacyBase32DecodedTooShortReturnedAsIs` | Base32 curto (nao e blob GCM) | PASS |
+| `legacyPlainSecretNotValidBase64ReturnedAsIs` | Segredo legado em texto plano | PASS — sem exceção |
+| `legacyBase32DecodedTooShortReturnedAsIs` | Base32 curto (não é blob GCM) | PASS |
 | `base64DecodedUnderMinLengthReturnedAsIs` | Blob Base64 menor que IV+tag | PASS |
 
-**Evidencia de seguranca:** cifragem em repouso funciona; migracao de dados legados nao quebra leitura.
+**Evidência de segurança:** cifragem em repouso funciona; migração de dados legados não quebra leitura.
 
 ---
 
@@ -59,9 +59,9 @@ Setup: `@BeforeAll` define `ENCRYPTION_KEY` (32 bytes fixos em Base64 para repro
 
 **Arquivo:** `src/test/java/umc/devapp/crud_produtos/config/AuthSecurityPropertiesTest.java`
 
-**Foco:** Parametros de seguranca configurados.
+**Foco:** Parâmetros de segurança configurados.
 
-| Parametro | Valor esperado |
+| Parâmetro | Valor esperado |
 |-----------|----------------|
 | BCrypt strength | 12 |
 | `maxAttempts` | 5 |
@@ -74,7 +74,7 @@ Setup: `@BeforeAll` define `ENCRYPTION_KEY` (32 bytes fixos em Base64 para repro
 
 **Arquivo:** `src/test/java/umc/devapp/crud_produtos/CrudProdutosApplicationTests.java`
 
-| Teste | Descricao | Resultado esperado |
+| Teste | Descrição | Resultado esperado |
 |-------|-----------|-------------------|
 | `contextLoads` | Contexto Spring sobe com perfil de teste | PASS |
 
@@ -88,15 +88,15 @@ Setup: `@BeforeAll` define `ENCRYPTION_KEY` (32 bytes fixos em Base64 para repro
 | Salt por hash | `shouldGenerateDifferentHashes...` |
 | Custo BCrypt 12 | `AuthSecurityPropertiesTest` |
 | Cifra TOTP em repouso | `TotpSecretConverterTest.roundTrip...` |
-| Brute force (5 / 15 min) | `AuthSecurityPropertiesTest` (parametros) |
+| Brute force (5 / 15 min) | `AuthSecurityPropertiesTest` (parâmetros) |
 | App inicializa | `contextLoads` |
 
 **Lacunas (sem teste automatizado hoje):**
 
 - Fluxo HTTP completo de login + 2FA
-- Bloqueio 423 apos 5 tentativas
-- Isolamento de produtos entre usuarios
-- Reset de senha (token expirado / invalido)
+- Bloqueio 423 após 5 tentativas
+- Isolamento de produtos entre usuários
+- Reset de senha (token expirado / inválido)
 - Redirect HTTPS 8080 → 8443
 
 ---
@@ -105,44 +105,44 @@ Setup: `@BeforeAll` define `ENCRYPTION_KEY` (32 bytes fixos em Base64 para repro
 
 Use **HTTPS** em ambiente local: `https://localhost:8443`
 
-### 4.1 Autenticacao e 2FA
+### 4.1 Autenticação e 2FA
 
-| # | Cenario | Passos | Resultado esperado |
+| # | Cenário | Passos | Resultado esperado |
 |---|---------|--------|-------------------|
-| M1 | Login senha invalida | POST `/auth/login` com senha errada | 401 |
-| M2 | Bloqueio por forca bruta | 5+ falhas de senha ou TOTP | 423 LOCKED |
+| M1 | Login senha inválida | POST `/auth/login` com senha errada | 401 |
+| M2 | Bloqueio por força bruta | 5+ falhas de senha ou TOTP | 423 LOCKED |
 | M3 | Login sem 2FA | Login OK, GET `/produto/listall` sem verify | 401 |
 | M4 | Fluxo completo | login → 2fa/verify → listall | 200 + lista |
 | M5 | Logout | POST `/auth/signout`, depois listall | 401 |
 
-### 4.2 Autorizacao de dados
+### 4.2 Autorização de dados
 
-| # | Cenario | Resultado esperado |
+| # | Cenário | Resultado esperado |
 |---|---------|-------------------|
-| M6 | Usuario A cria produto | 201 |
-| M7 | Usuario B tenta GET `/produto/list/{id}` do A | 404 ou erro |
+| M6 | Usuário A cria produto | 201 |
+| M7 | Usuário B tenta GET `/produto/list/{id}` do A | 404 ou erro |
 
 ### 4.3 Reset de senha
 
-| # | Cenario | Resultado esperado |
+| # | Cenário | Resultado esperado |
 |---|---------|-------------------|
 | M8 | Request com e-mail inexistente | 404 |
-| M9 | Confirm com token invalido | 400 |
-| M10 | Confirm apos 30 min | 400 (expirado) |
-| M11 | Confirm com senha valida | 200; login com nova senha OK |
+| M9 | Confirm com token inválido | 400 |
+| M10 | Confirm após 30 min | 400 (expirado) |
+| M11 | Confirm com senha válida | 200; login com nova senha OK |
 
 ### 4.4 Transporte
 
-| # | Cenario | Resultado esperado |
+| # | Cenário | Resultado esperado |
 |---|---------|-------------------|
 | M12 | GET `http://localhost:8080/login.html` | Redirect para HTTPS 8443 |
-| M13 | Inspecionar cookie apos login | `HttpOnly`, `Secure` (com SSL) |
+| M13 | Inspecionar cookie após login | `HttpOnly`, `Secure` (com SSL) |
 
 ---
 
-## 5. Registro de execucao (template)
+## 5. Registro de execução (template)
 
-Preencha apos rodar `mvn test`:
+Preencha após rodar `mvn test`:
 
 | Campo | Valor |
 |-------|-------|
@@ -153,9 +153,9 @@ Preencha apos rodar `mvn test`:
 | Falhas | _0_ |
 | Erros | _0_ |
 | Tempo | _Xs_ |
-| Responsavel | _Nome_ |
+| Responsável | _Nome_ |
 
-**Saida esperada (resumo):**
+**Saída esperada (resumo):**
 
 ```
 Tests run: 8, Failures: 0, Errors: 0, Skipped: 0
@@ -165,9 +165,9 @@ Tests run: 8, Failures: 0, Errors: 0, Skipped: 0
 
 ---
 
-## 6. Evidencias de runtime (logs)
+## 6. Evidências de runtime (logs)
 
-Classes que registram eventos de seguranca:
+Classes que registram eventos de segurança:
 
 | Classe | Eventos logados |
 |--------|-----------------|
@@ -186,10 +186,10 @@ Exemplos esperados nos logs:
 
 ## 7. Como adicionar novos testes
 
-Sugestoes para cobrir lacunas:
+Sugestões para cobrir lacunas:
 
 1. **`@WebMvcTest(AuthController.class)`** — status HTTP sem subir BD completo.
-2. **`@SpringBootTest` + MockMvc** — fluxo login com H2 e usuario fixture.
+2. **`@SpringBootTest` + MockMvc** — fluxo login com H2 e usuário fixture.
 3. **Testcontainers MySQL** — validar `TotpSecretConverter` contra BD real.
 
 ---
