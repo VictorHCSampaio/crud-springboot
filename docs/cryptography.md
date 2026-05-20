@@ -1,31 +1,31 @@
 # Criptografia — CRUD Produtos
 
-Documentacao do uso de criptografia em transito e em repouso no projeto Spring Boot.
+Documentação do uso de criptografia em trânsito e em repouso no projeto Spring Boot.
 
-## Visao geral
+## Visão geral
 
-| Camada | Dado protegido | Mecanismo | Implementacao |
+| Camada | Dado protegido | Mecanismo | Implementação |
 |--------|----------------|-----------|---------------|
-| Em transito (cliente ↔ API) | HTTP, cookies, JSON | TLS/HTTPS | `application-local.properties`, `HttpsRedirectConfig` |
-| Em transito (API ↔ banco) | Consultas JDBC | SSL/TLS do conector | `MYSQL_SSL_MODE`, `SPRING_DATASOURCE_URL` |
-| Em transito (API ↔ SMTP) | E-mail de reset | STARTTLS | `spring.mail.*` (porta 587) |
-| Em repouso | Senha do usuario | Hash adaptativo | BCrypt strength 12 — `PasswordService` |
-| Em repouso | Segredo TOTP | Cifra simetrica autenticada | AES-256-GCM — `TotpSecretConverter` |
+| Em trânsito (cliente ↔ API) | HTTP, cookies, JSON | TLS/HTTPS | `application-local.properties`, `HttpsRedirectConfig` |
+| Em trânsito (API ↔ banco) | Consultas JDBC | SSL/TLS do conector | `MYSQL_SSL_MODE`, `SPRING_DATASOURCE_URL` |
+| Em trânsito (API ↔ SMTP) | E-mail de reset | STARTTLS | `spring.mail.*` (porta 587) |
+| Em repouso | Senha do usuário | Hash adaptativo | BCrypt strength 12 — `PasswordService` |
+| Em repouso | Segredo TOTP | Cifra simétrica autenticada | AES-256-GCM — `TotpSecretConverter` |
 
 ```mermaid
 flowchart LR
-    subgraph transito [Em transito]
-        HTTPS[HTTPS TLS 8443]
-        JDBC[JDBC sslMode]
-        SMTP[SMTP STARTTLS]
+    subgraph transito ["Em trânsito"]
+        HTTPS["HTTPS TLS 8443"]
+        JDBC["JDBC sslMode"]
+        SMTP["SMTP STARTTLS"]
     end
-    subgraph repouso [Em repouso]
-        BCrypt[BCrypt password_hash]
-        AES[AES-256-GCM totp_secret]
+    subgraph repouso ["Em repouso"]
+        BCrypt["BCrypt password_hash"]
+        AES["AES-256-GCM totp_secret"]
     end
-    Cliente --> HTTPS --> API[Spring Boot]
-    API --> JDBC --> BD[(MySQL / PostgreSQL)]
-    API --> SMTP --> Gmail[smtp.gmail.com]
+    Cliente --> HTTPS --> API["Spring Boot"]
+    API --> JDBC --> BD[("MySQL ou PostgreSQL")]
+    API --> SMTP --> Gmail["smtp.gmail.com"]
     API --> BCrypt
     API --> AES
     AES --> BD
@@ -34,13 +34,13 @@ flowchart LR
 
 ---
 
-## 1. HTTPS / TLS (dados em transito — aplicacao)
+## 1. HTTPS / TLS (dados em trânsito — aplicação)
 
-### Configuracao
+### Configuração
 
 Perfis `local` e `dev` (`application-local.properties`, `application-dev.properties`):
 
-| Propriedade | Valor padrao |
+| Propriedade | Valor padrão |
 |-------------|--------------|
 | `server.port` | 8443 |
 | `server.http.port` | 8080 |
@@ -56,11 +56,11 @@ Perfis `local` e `dev` (`application-local.properties`, `application-dev.propert
 - Conector adicional na porta **8080** redireciona para **8443**.
 - Constraint Tomcat `CONFIDENTIAL` força canal seguro.
 
-### HSTS e cookie de sessao
+### HSTS e cookie de sessão
 
 `SecurityConfig` (com SSL ativo):
 
-- Cabecalho `Strict-Transport-Security` (max-age 31536000, includeSubDomains).
+- Cabeçalho `Strict-Transport-Security` (max-age 31536000, includeSubDomains).
 - `requiresChannel().anyRequest().requiresSecure()`.
 
 `application.properties`:
@@ -71,81 +71,81 @@ server.servlet.session.cookie.http-only=true
 server.servlet.session.cookie.same-site=lax
 ```
 
-### Geracao do keystore
+### Geração do keystore
 
 ```bash
 bash scripts/generate-dev-keystore.sh
 ```
 
-Variaveis: `SSL_KEYSTORE_FILE`, `SSL_KEYSTORE_PASSWORD`, `SSL_KEYSTORE_ALIAS`.
+Variáveis: `SSL_KEYSTORE_FILE`, `SSL_KEYSTORE_PASSWORD`, `SSL_KEYSTORE_ALIAS`.
 
 ---
 
 ## 2. BCrypt — senhas em repouso
 
-### Onde esta no codigo
+### Onde está no código
 
 | Componente | Arquivo |
 |----------|---------|
 | Encoder | `SecurityBeansConfig` → `BCryptPasswordEncoder` |
-| Servico | `PasswordService` |
-| Configuracao | `security.password.bcrypt.strength=12` |
+| Serviço | `PasswordService` |
+| Configuração | `security.password.bcrypt.strength=12` |
 | Coluna BD | `usuarios.password_hash` |
 
 ### Comportamento
 
-- **Salt:** gerado automaticamente por hash; embutido no proprio valor BCrypt.
-- **Custo:** strength **12** (2^12 iteracoes internas).
-- **Operacoes:** `hashPassword()` no registro/reset; `matches()` no login.
+- **Salt:** gerado automaticamente por hash; embutido no próprio valor BCrypt.
+- **Custo:** strength **12** (2^12 iterações internas).
+- **Operações:** `hashPassword()` no registro/reset; `matches()` no login.
 
-### Justificativa tecnica
+### Justificativa técnica
 
-Alinhado a **NIST SP 800-63B**: usar funcoes de derivacao adaptativas para verificadores de senha, dificultando ataques offline por forca bruta.
+Alinhado a **NIST SP 800-63B**: usar funções de derivação adaptativas para verificadores de senha, dificultando ataques offline por força bruta.
 
 ---
 
 ## 3. AES-256-GCM — segredo TOTP em repouso
 
-### Onde esta no codigo
+### Onde está no código
 
 | Componente | Arquivo |
 |----------|---------|
 | Conversor JPA | `TotpSecretConverter` |
 | Entidade | `Usuario.totpSecret` com `@Convert(converter = TotpSecretConverter.class)` |
-| Chave | `ENCRYPTION_KEY` (variavel de ambiente → `System.setProperty` via `DotenvConfig`) |
+| Chave | `ENCRYPTION_KEY` (variável de ambiente → `System.setProperty` via `DotenvConfig`) |
 
 ### Algoritmo
 
-| Parametro | Valor |
+| Parâmetro | Valor |
 |-----------|-------|
 | Algoritmo JCA | `AES/GCM/NoPadding` |
 | Tamanho da chave | 256 bits (32 bytes decodificados de Base64) |
-| IV | 12 bytes aleatorios (`SecureRandom`) por cifragem |
+| IV | 12 bytes aleatórios (`SecureRandom`) por cifragem |
 | Tag GCM | 128 bits |
 | Formato no BD | Base64( IV ‖ ciphertext+tag ) |
 
-### Fluxo persistencia
+### Fluxo de persistência
 
 ```mermaid
 sequenceDiagram
-    participant App as Aplicacao
+    participant App as Aplicação
     participant Conv as TotpSecretConverter
     participant DB as Banco
 
-    App->>Conv: convertToDatabaseColumn(plaintext)
+    App->>Conv: convertToDatabaseColumn
     Conv->>Conv: AES-256-GCM encrypt
     Conv->>DB: string Base64 cifrada
 
-    DB->>Conv: convertToEntityAttribute(ciphertext)
+    DB->>Conv: convertToEntityAttribute
     Conv->>Conv: AES-256-GCM decrypt
-    Conv->>App: plaintext (uso em TotpService)
+    Conv->>App: plaintext para TotpService
 ```
 
 ### Compatibilidade legada
 
-Se o valor no banco nao for um blob GCM valido (texto plano, Base32 curto, Base64 curto), o conversor **retorna o valor original** sem falhar — permite migracao gradual de registros antigos.
+Se o valor no banco não for um blob GCM válido (texto plano, Base32 curto, Base64 curto), o conversor **retorna o valor original** sem falhar — permite migração gradual de registros antigos.
 
-### Geracao da chave
+### Geração da chave
 
 ```bash
 openssl rand -base64 32
@@ -157,11 +157,11 @@ Configurar em `.env`:
 ENCRYPTION_KEY=<resultado-do-comando>
 ```
 
-**Requisitos:** exatamente 32 bytes apos decodificacao Base64; nunca versionar o valor real.
+**Requisitos:** exatamente 32 bytes após decodificação Base64; nunca versionar o valor real.
 
-### Servico auxiliar
+### Serviço auxiliar
 
-`EncryptionService` implementa a mesma logica AES-GCM de forma generica; o campo TOTP usa exclusivamente `TotpSecretConverter` na persistencia JPA.
+`EncryptionService` implementa a mesma lógica AES-GCM de forma genérica; o campo TOTP usa exclusivamente `TotpSecretConverter` na persistência JPA.
 
 ---
 
@@ -170,18 +170,18 @@ ENCRYPTION_KEY=<resultado-do-comando>
 | Item | Detalhe |
 |------|---------|
 | Biblioteca | `com.warrenstrange:googleauth` 1.5.0 |
-| Servico | `TotpService` |
+| Serviço | `TotpService` |
 | Janela | `windowSize=1` |
 | Issuer | `security.auth.totp.issuer=crud-produtos` |
 | URI QR | `otpauth://totp/{issuer}:{username}?secret=...` |
 
-O segredo em memoria e descriptografado pelo JPA ao carregar `Usuario`; em transito para o cliente, `TotpSetupResponse` expoe `secret` e `qrUri` apenas em HTTPS (registro ou setup 2FA).
+O segredo em memória é descriptografado pelo JPA ao carregar `Usuario`; em trânsito para o cliente, `TotpSetupResponse` expõe `secret` e `qrUri` apenas em HTTPS (registro ou setup 2FA).
 
 ---
 
-## 5. TLS JDBC (aplicacao ↔ banco)
+## 5. TLS JDBC (aplicação ↔ banco)
 
-| Perfil | Parametro padrao na URL |
+| Perfil | Parâmetro padrão na URL |
 |--------|-------------------------|
 | `local` | `sslMode=DISABLED` |
 | `dev` | `sslMode=PREFERRED` |
@@ -204,25 +204,25 @@ spring.mail.properties.mail.smtp.starttls.enable=true
 spring.mail.properties.mail.smtp.starttls.required=true
 ```
 
-Servico: `EmailService.sendPasswordResetEmail()` — token enviado no corpo do e-mail (nao retornado na API em producao).
+Serviço: `EmailService.sendPasswordResetEmail()` — token enviado no corpo do e-mail (não retornado na API em produção).
 
 ---
 
 ## 7. Matriz de conformidade (requisitos 3.x do projeto)
 
-| Requisito | Controle | Evidencia |
+| Requisito | Controle | Evidência |
 |-----------|----------|-----------|
-| 3.1 TLS na aplicacao | HTTPS 8443 + keystore | `application-local.properties`, `HttpsRedirectConfig` |
+| 3.1 TLS na aplicação | HTTPS 8443 + keystore | `application-local.properties`, `HttpsRedirectConfig` |
 | 3.2 Bloqueio HTTP claro | Redirect 8080 → 8443 | `HttpsRedirectConfig` |
-| 3.4 Dado sensivel cifrado em repouso | `totp_secret` AES-GCM | `TotpSecretConverter` |
+| 3.4 Dado sensível cifrado em repouso | `totp_secret` AES-GCM | `TotpSecretConverter` |
 | 3.5 Algoritmo documentado | AES-256-GCM, BCrypt | Este documento + README |
-| 3.6 Chave fora do codigo | `ENCRYPTION_KEY` no `.env` | `DotenvConfig`, `.env.example` |
-| 3.7 Camadas de criptografia | TLS + BCrypt + AES-GCM + STARTTLS | Secoes acima |
-| 3.8 Justificativa tecnica | NIST / RFC | README secao Seguranca |
+| 3.6 Chave fora do código | `ENCRYPTION_KEY` no `.env` | `DotenvConfig`, `.env.example` |
+| 3.7 Camadas de criptografia | TLS + BCrypt + AES-GCM + STARTTLS | Seções acima |
+| 3.8 Justificativa técnica | NIST / RFC | README seção Segurança |
 
 ---
 
-## 8. Referencias tecnicas
+## 8. Referências técnicas
 
 - NIST FIPS 197 — AES
 - NIST SP 800-38D — Galois/Counter Mode (GCM)
@@ -236,5 +236,5 @@ Servico: `EmailService.sendPasswordResetEmail()` — token enviado no corpo do e
 
 - [security-auth-flow.md](./security-auth-flow.md) — fluxo de login e 2FA
 - [password-reset.md](./password-reset.md) — reset de senha e e-mail
-- [security-controls.md](./security-controls.md) — gestao de credenciais e controles
+- [security-controls.md](./security-controls.md) — gestão de credenciais e controles
 - [security-tests.md](./security-tests.md) — testes de criptografia

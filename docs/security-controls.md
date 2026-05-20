@@ -1,8 +1,8 @@
-# Controles de seguranca e gestao de credenciais
+# Controles de segurança e gestão de credenciais
 
-Documentacao dos controles implementados, gestao de segredos e identificacao de ativos do sistema CRUD Produtos.
+Documentação dos controles implementados, gestão de segredos e identificação de ativos do sistema CRUD Produtos.
 
-## 1. Arquitetura logica
+## 1. Arquitetura lógica
 
 ```mermaid
 flowchart TB
@@ -10,9 +10,9 @@ flowchart TB
         Browser[Navegador]
     end
 
-    subgraph app [Spring Boot - umc.devapp.crud_produtos]
+    subgraph app ["Spring Boot"]
         direction TB
-        Static[Recursos estaticos frontend]
+        Static["Recursos estáticos frontend"]
         AC[AuthController]
         PC[ProdutoController]
         SC[SecurityConfig]
@@ -23,12 +23,12 @@ flowchart TB
         PR[(ProdutoRepository)]
     end
 
-    subgraph externos [Servicos externos]
-        DB[(MySQL / PostgreSQL)]
+    subgraph externos ["Serviços externos"]
+        DB[("MySQL ou PostgreSQL")]
         Mail[SMTP Gmail]
     end
 
-    Browser -->|HTTPS 8443| SC
+    Browser -->|"HTTPS 8443"| SC
     SC --> AC
     SC --> PC
     SC --> Static
@@ -47,25 +47,25 @@ flowchart TB
 
 | Camada | Pacote | Responsabilidade |
 |--------|--------|------------------|
-| Apresentacao | `controller` | HTTP, validacao (`@Valid`), status codes |
-| Negocio | `service` | Autenticacao, CRUD, e-mail, protecao |
-| Persistencia | `repository`, `entity` | JPA, isolamento por usuario |
+| Apresentação | `controller` | HTTP, validação (`@Valid`), status codes |
+| Negócio | `service` | Autenticação, CRUD, e-mail, proteção |
+| Persistência | `repository`, `entity` | JPA, isolamento por usuário |
 | Contratos | `dto.auth` | JSON request/response |
 | Infraestrutura | `config` | Security, HTTPS, dotenv, criptografia |
 
 ---
 
-## 2. Diagrama de implantacao
+## 2. Diagrama de implantação
 
 ```mermaid
 flowchart LR
-    U[Usuario] -->|https://localhost:8443| T[Tomcat embarcado]
-    U -->|http://localhost:8080| R[Redirect HTTPS]
+    U[Usuário] -->|"https localhost 8443"| T[Tomcat embarcado]
+    U -->|"http localhost 8080"| R[Redirect HTTPS]
     R --> T
-    T --> K[certs/dev-keystore.p12]
-    T --> F[../crud-springboot-front/]
-    T -->|JDBC| DB[(Banco de dados)]
-    T -->|STARTTLS:587| SMTP[smtp.gmail.com]
+    T --> K["certs/dev-keystore.p12"]
+    T --> F["crud-springboot-front"]
+    T -->|JDBC| DB[("Banco de dados")]
+    T -->|"STARTTLS 587"| SMTP["smtp.gmail.com"]
 ```
 
 | Componente | Porta / protocolo |
@@ -77,56 +77,56 @@ flowchart LR
 
 ---
 
-## 3. Gestao de credenciais
+## 3. Gestão de credenciais
 
-### 3.1 Principios
+### 3.1 Princípios
 
-1. **Segredos fora do codigo-fonte** — arquivo `.env` carregado por `DotenvConfig`.
-2. **Nao versionar valores reais** — `.env`, `*.p12`, `/certs/` excluidos ou ignorados no Git.
+1. **Segredos fora do código-fonte** — arquivo `.env` carregado por `DotenvConfig`.
+2. **Não versionar valores reais** — `.env`, `*.p12`, `/certs/` excluídos ou ignorados no Git.
 3. **Senhas apenas como hash** — coluna `password_hash` (BCrypt).
 4. **Segredo TOTP cifrado no BD** — `TotpSecretConverter` (AES-256-GCM).
-5. **Autenticacao stateful** — sessao HTTP + cookie `JSESSIONID`.
+5. **Autenticação stateful** — sessão HTTP + cookie `JSESSIONID`.
 
-### 3.2 Variaveis de ambiente
+### 3.2 Variáveis de ambiente
 
-| Variavel | Finalidade | Obrigatorio |
+| Variável | Finalidade | Obrigatório |
 |----------|------------|-------------|
-| `APP_PROFILE` | Perfil Spring (`local`, `dev`) | Nao (padrao: `local`) |
-| `PG_USER` | Usuario JDBC | Sim |
+| `APP_PROFILE` | Perfil Spring (`local`, `dev`) | Não (padrão: `local`) |
+| `PG_USER` | Usuário JDBC | Sim |
 | `PG_PASSWORD` | Senha JDBC | Sim |
-| `SPRING_DATASOURCE_URL` | URL JDBC completa | Nao |
-| `MYSQL_SSL_MODE` | SSL do MySQL Connector/J | Nao |
+| `SPRING_DATASOURCE_URL` | URL JDBC completa | Não |
+| `MYSQL_SSL_MODE` | SSL do MySQL Connector/J | Não |
 | `MAIL_USERNAME` | Conta SMTP | Sim |
 | `MAIL_PASSWORD` | Senha de app Gmail | Sim |
-| `MAIL_FROM` | Remetente | Nao |
+| `MAIL_FROM` | Remetente | Não |
 | `ENCRYPTION_KEY` | Chave AES-256 (Base64, 32 bytes) | Sim |
-| `SSL_KEYSTORE_PASSWORD` | Senha do keystore PKCS12 | Nao |
-| `SSL_KEYSTORE_FILE` | Caminho alternativo do `.p12` | Nao |
-| `SSL_KEYSTORE_ALIAS` | Alias da chave no keystore | Nao |
+| `SSL_KEYSTORE_PASSWORD` | Senha do keystore PKCS12 | Não |
+| `SSL_KEYSTORE_FILE` | Caminho alternativo do `.p12` | Não |
+| `SSL_KEYSTORE_ALIAS` | Alias da chave no keystore | Não |
 
 Template: [.env.example](../.env.example)
 
 ### 3.3 Carregamento do `.env`
 
 ```java
-// DotenvConfig — bloco static executado na inicializacao
+// DotenvConfig — bloco static executado na inicialização
 Dotenv.configure().ignoreIfMissing().load()
     → System.setProperty(chave, valor)
 ```
 
 Spring resolve `${VAR}` em `application.properties` a partir de propriedades do sistema / ambiente.
 
-### 3.4 Politica de senhas
+### 3.4 Política de senhas
 
-| Regra | Implementacao |
+| Regra | Implementação |
 |-------|---------------|
-| Tamanho minimo | 8 caracteres (`RegisterRequest` — `@Size(min = 8)`) |
+| Tamanho mínimo | 8 caracteres (`RegisterRequest` — `@Size(min = 8)`) |
 | Armazenamento | BCrypt strength 12 |
-| Reset | Nova senha hasheada; token UUID invalidado apos uso |
+| Reset | Nova senha hasheada; token UUID invalidado após uso |
 
-### 3.5 Sessao HTTP
+### 3.5 Sessão HTTP
 
-| Parametro | Valor |
+| Parâmetro | Valor |
 |-----------|-------|
 | Timeout | 30 minutos |
 | Cookie HttpOnly | `true` |
@@ -134,16 +134,16 @@ Spring resolve `${VAR}` em `application.properties` a partir de propriedades do 
 | SameSite | `Lax` |
 | Identificador | `JSESSIONID` |
 
-### 3.6 Protecao contra forca bruta
+### 3.6 Proteção contra força bruta
 
-| Parametro | Propriedade | Valor |
+| Parâmetro | Propriedade | Valor |
 |-----------|-------------|-------|
-| Max tentativas | `security.auth.max-attempts` | 5 |
+| Máx. tentativas | `security.auth.max-attempts` | 5 |
 | Bloqueio | `security.auth.lock-duration-minutes` | 15 min |
 | Campos BD | `failed_attempts`, `lock_until` | `Usuario` |
 | HTTP bloqueado | — | **423 LOCKED** |
 
-Servico: `BruteForceProtectionService` — incrementa em falha de senha ou TOTP; zera em sucesso do 2FA.
+Serviço: `BruteForceProtectionService` — incrementa em falha de senha ou TOTP; zera em sucesso do 2FA.
 
 ---
 
@@ -153,8 +153,8 @@ Servico: `BruteForceProtectionService` — incrementa em falha de senha ou TOTP;
 
 | Recurso | Acesso |
 |---------|--------|
-| `/auth/**` | Publico |
-| `/`, `/login.html`, `/scripts/**`, `/styles/**`, `/images/**`, `/**/*.html` (GET) | Publico |
+| `/auth/**` | Público |
+| `/`, `/login.html`, `/scripts/**`, `/styles/**`, `/images/**`, `/**/*.html` (GET) | Público |
 | `/produto/**` | Autenticado |
 | Demais rotas | Autenticado |
 
@@ -163,14 +163,14 @@ Outros controles:
 - CSRF desabilitado (`csrf.disable()`)
 - Form login / HTTP Basic desabilitados
 - CORS: `allowedOriginPatterns("*")`, `allowCredentials(true)`
-- Logout Spring: `/auth/logout` (invalida sessao e cookie)
-- Logout aplicacao: `POST /auth/signout` (`AuthService.logout`)
+- Logout Spring: `/auth/logout` (invalida sessão e cookie)
+- Logout aplicação: `POST /auth/signout` (`AuthService.logout`)
 
 ---
 
-## 5. Isolamento de dados (multi-usuario)
+## 5. Isolamento de dados (multi-usuário)
 
-Cada usuario acessa apenas seus produtos:
+Cada usuário acessa apenas seus produtos:
 
 ```java
 // ProdutoService
@@ -178,38 +178,38 @@ produtoRepository.findByUsuario(getCurrentUser())
 produtoRepository.findByIdAndUsuario(id, getCurrentUser())
 ```
 
-Usuario atual obtido via `SecurityContextHolder.getContext().getAuthentication().getName()`.
+Usuário atual obtido via `SecurityContextHolder.getContext().getAuthentication().getName()`.
 
 ---
 
-## 6. Identificacao de ativos
+## 6. Identificação de ativos
 
 ### 6.1 Software
 
 | ID | Ativo | Criticidade |
 |----|-------|-------------|
-| A1 | Aplicacao Spring Boot (API + servidor estatico) | Alta |
-| A2 | Frontend `crud-springboot-front` | Media |
-| A3 | Codigo-fonte e dependencias Maven | Alta |
+| A1 | Aplicação Spring Boot (API + servidor estático) | Alta |
+| A2 | Frontend `crud-springboot-front` | Média |
+| A3 | Código-fonte e dependências Maven | Alta |
 | A4 | Keystore TLS (`dev-keystore.p12`) | Alta |
 
 ### 6.2 Dados
 
 | ID | Ativo | Local | Criticidade |
 |----|-------|-------|-------------|
-| D1 | Cadastro de usuarios (`usuarios`) | BD | Alta |
-| D2 | `password_hash` | BD | Critica |
-| D3 | `totp_secret` (cifrado) | BD | Critica |
+| D1 | Cadastro de usuários (`usuarios`) | BD | Alta |
+| D2 | `password_hash` | BD | Crítica |
+| D3 | `totp_secret` (cifrado) | BD | Crítica |
 | D4 | Tokens de reset | BD | Alta |
-| D5 | Estoque (`produtos`) | BD | Media |
-| D6 | Sessoes HTTP | Memoria Tomcat | Alta |
+| D5 | Estoque (`produtos`) | BD | Média |
+| D6 | Sessões HTTP | Memória Tomcat | Alta |
 
 ### 6.3 Credenciais e chaves
 
 | ID | Ativo | Armazenamento | Criticidade |
 |----|-------|---------------|-------------|
-| K1 | `ENCRYPTION_KEY` | `.env` / SO | Critica |
-| K2 | `PG_PASSWORD` | `.env` | Critica |
+| K1 | `ENCRYPTION_KEY` | `.env` / SO | Crítica |
+| K2 | `PG_PASSWORD` | `.env` | Crítica |
 | K3 | `MAIL_PASSWORD` | `.env` | Alta |
 | K4 | `SSL_KEYSTORE_PASSWORD` | `.env` | Alta |
 | K5 | Cookie `JSESSIONID` | Cliente | Alta |
@@ -220,27 +220,27 @@ Usuario atual obtido via `SecurityContextHolder.getContext().getAuthentication()
 |----|-------|
 | I1 | Servidor de banco (MySQL/PostgreSQL) |
 | I2 | Servidor SMTP |
-| I3 | Host de desenvolvimento / producao |
+| I3 | Host de desenvolvimento / produção |
 
 ---
 
-## 7. Endpoints e respostas (referencia)
+## 7. Endpoints e respostas (referência)
 
-### Autenticacao (`/auth`)
+### Autenticação (`/auth`)
 
-| Metodo | Path | Auth | Resposta 200 |
+| Método | Path | Auth | Resposta 200 |
 |--------|------|------|--------------|
-| POST | `/register` | Nao | `TotpSetupResponse` |
-| POST | `/login` | Nao | `AuthMessageResponse` |
-| POST | `/2fa/setup` | Sessao parcial | `TotpSetupResponse` |
-| POST | `/2fa/verify` | Sessao parcial | `AuthMessageResponse` |
-| POST | `/signout` | Nao | `AuthMessageResponse` |
-| POST | `/password-reset/request` | Nao | `PasswordResetResponse` |
-| POST | `/password-reset/confirm` | Nao | `AuthMessageResponse` |
+| POST | `/register` | Não | `TotpSetupResponse` |
+| POST | `/login` | Não | `AuthMessageResponse` |
+| POST | `/2fa/setup` | Sessão parcial | `TotpSetupResponse` |
+| POST | `/2fa/verify` | Sessão parcial | `AuthMessageResponse` |
+| POST | `/signout` | Não | `AuthMessageResponse` |
+| POST | `/password-reset/request` | Não | `PasswordResetResponse` |
+| POST | `/password-reset/confirm` | Não | `AuthMessageResponse` |
 
 ### Produtos (`/produto`)
 
-| Metodo | Path | Auth | Resposta |
+| Método | Path | Auth | Resposta |
 |--------|------|------|----------|
 | GET | `/listall` | Sim | 200 — lista JSON |
 | GET | `/list/{id}` | Sim | 200 / 404 |
@@ -259,7 +259,7 @@ Detalhes de reset: [password-reset.md](./password-reset.md)
 - [ ] Gerar `ENCRYPTION_KEY` com `openssl rand -base64 32`
 - [ ] Executar `scripts/generate-dev-keystore.sh` antes de HTTPS local
 - [ ] Nunca commitar `.env` nem keystores reais
-- [ ] Em producao: certificado CA valido, CORS restrito, revisar CSRF
+- [ ] Em produção: certificado CA válido, CORS restrito, revisar CSRF
 
 ---
 
